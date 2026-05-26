@@ -1,12 +1,13 @@
-// 게임3: 정강이 때려 종강 — 교수님 정강이를 타격해 종강 게이지를 채운다
+// 게임3: 정강이 때려 종강 — 정강이를 타격해 종강 게이지를 채운다
 import { engine } from "../engine.js";
 import { drawBackground, drawGauge, drawSpeechBubble, drawButton, drawBanner, Confetti } from "../ui.js";
 import { drawProfessor, shinHitRect } from "../characters.js";
 import { drawTopControls, handleTopControls } from "../sceneutil.js";
 import { clamp, pointInRect, makeShake } from "../utils.js";
+import { stageRect, topBarBottom, buttonH, bottomPad, fitCharacter } from "../layout.js";
 import { playSlap, playWin, vibrate } from "../audio.js";
 
-const SMART = 0.85; // 교수님 상태 유지 (할아버지 아님)
+const SMART = 0.85;
 const PER_HIT = 1 / 12;
 
 function lineFor(p, done) {
@@ -26,30 +27,26 @@ const shin = {
   miss: [],
   t: 0,
 
-  _resetRect(w, h) {
-    const bw = Math.min(w * 0.5, 240);
-    const bh = 54;
-    const pad = Math.max(14, h * 0.025);
-    return { x: (w - bw) / 2, y: h - bh - pad, w: bw, h: bh };
+  _layout(W, h) {
+    const top = topBarBottom(W);
+    const gaugeY = top + 28;
+    const gaugeH = 18;
+    const hudBottom = gaugeY + gaugeH + 12;
+    const resetH = buttonH(h);
+    const resetY = h - bottomPad(h) - resetH;
+    const resetW = Math.min(W * 0.5, 240);
+    const resetRect = { x: (W - resetW) / 2, y: resetY, w: resetW, h: resetH };
+    const fit = fitCharacter(W, hudBottom, resetY - 12, 0.26);
+    return { gaugeY, gaugeH, hudBottom, resetRect, fit };
   },
-  _scale(w, h) {
-    return clamp(Math.min(w * 0.0017, h * 0.0014), 0.5, 1.15);
-  },
-  _groundY(h) {
-    return h * 0.82;
-  },
+
   _flinch() {
     return clamp(this.flinchT / 0.3, 0, 1);
   },
 
-  _targetRect(w, h) {
-    const t = shinHitRect({
-      x: w / 2,
-      y: this._groundY(h),
-      scale: this._scale(w, h),
-      smart: SMART,
-      flinch: this._flinch(),
-    });
+  _targetRect(W, h) {
+    const L = this._layout(W, h);
+    const t = shinHitRect({ x: W / 2, y: L.fit.groundY, scale: L.fit.scale, smart: SMART, flinch: this._flinch() });
     return { x: t.x - 24, y: t.y - 18, w: t.w + 48, h: t.h + 34 };
   },
 
@@ -94,17 +91,21 @@ const shin = {
   render(ctx, w, h) {
     drawBackground(ctx, w, h, "shin");
 
-    const scale = this._scale(w, h);
-    const groundY = this._groundY(h);
+    const stage = stageRect(w, h);
+    const W = stage.w;
+    const L = this._layout(W, h);
     const off = this.shake.step(0);
     const glow = this.done ? 0 : 0.5 + 0.5 * Math.sin(this.t * 5);
 
     ctx.save();
+    ctx.translate(stage.x, 0);
+
+    ctx.save();
     ctx.translate(off.x, off.y);
     drawProfessor(ctx, {
-      x: w / 2,
-      y: groundY,
-      scale,
+      x: W / 2,
+      y: L.fit.groundY,
+      scale: L.fit.scale,
       smart: SMART,
       flinch: this._flinch(),
       shinGlow: glow,
@@ -112,55 +113,61 @@ const shin = {
     });
     ctx.restore();
 
-    const headTopY = groundY + (-252 - 59) * scale;
-    drawSpeechBubble(ctx, w / 2, headTopY, lineFor(this.progress, this.done), {
-      maxWidth: Math.min(w * 0.8, 360),
-      fontSize: 20,
+    // 말풍선 (머리 위, HUD 아래로 클램프)
+    const bubbleBottom = Math.max(L.hudBottom + 92, L.fit.headTopY - 6);
+    drawSpeechBubble(ctx, W / 2, bubbleBottom, lineFor(this.progress, this.done), {
+      maxWidth: Math.min(W * 0.82, 340),
+      fontSize: 18,
     });
 
     // 빗나감 표시
     ctx.save();
     ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    ctx.font = "900 22px Arial, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "900 22px system-ui, sans-serif";
     for (const m of this.miss) {
       ctx.globalAlpha = clamp(m.life, 0, 1);
       ctx.fillText("툭…", m.x, m.y);
     }
     ctx.restore();
 
-    drawGauge(ctx, { x: w * 0.1, y: h * 0.135, w: w * 0.8, h: 20 }, this.progress, {
+    drawGauge(ctx, { x: W * 0.1, y: L.gaugeY, w: W * 0.8, h: L.gaugeH }, this.progress, {
       label: "종강까지",
       color: "#ffd042",
     });
 
-    drawTopControls(ctx, w, h, "정강이 종강");
-
-    if (this.done) {
-      this.confetti.render(ctx);
-      drawBanner(ctx, w, h, "아이고 종강이야!", "한 학기 끝~ 수고하셨습니다 🎓");
-    }
-
-    drawButton(ctx, this._resetRect(w, h), this.done ? "한 학기 더" : "처음부터", {
+    drawTopControls(ctx, W, h, "정강이 종강");
+    drawButton(ctx, L.resetRect, this.done ? "한 학기 더" : "처음부터", {
       emoji: "🔄",
       variant: this.done ? "primary" : "ghost",
       pressed: this.resetPressed,
     });
+
+    ctx.restore();
+
+    // 전체 화면 오버레이
+    if (this.done) {
+      this.confetti.render(ctx);
+      drawBanner(ctx, w, h, "아이고 종강이야!", "한 학기 끝~ 수고하셨습니다 🎓");
+    }
   },
 
   onPointerDown(x, y) {
-    const w = engine.w;
+    const stage = stageRect(engine.w, engine.h);
+    const W = stage.w;
     const h = engine.h;
-    if (handleTopControls(x, y, engine, w, h)) return;
-    if (pointInRect(x, y, this._resetRect(w, h))) {
+    const lx = x - stage.x;
+    if (handleTopControls(lx, y, engine, W, h)) return;
+    const L = this._layout(W, h);
+    if (pointInRect(lx, y, L.resetRect)) {
       this.resetPressed = true;
       return;
     }
     if (this.done) return;
-    if (pointInRect(x, y, this._targetRect(w, h))) {
+    if (pointInRect(lx, y, this._targetRect(W, h))) {
       this._hit();
     } else {
-      this.miss.push({ x, y, life: 0.7 });
+      this.miss.push({ x: lx, y, life: 0.7 });
       this.shake.add(4);
     }
   },
@@ -168,7 +175,9 @@ const shin = {
   onPointerUp(x, y) {
     if (this.resetPressed) {
       this.resetPressed = false;
-      if (pointInRect(x, y, this._resetRect(engine.w, engine.h))) {
+      const stage = stageRect(engine.w, engine.h);
+      const L = this._layout(stage.w, engine.h);
+      if (pointInRect(x - stage.x, y, L.resetRect)) {
         this.progress = 0;
         this.done = false;
         this.flinchT = 0;

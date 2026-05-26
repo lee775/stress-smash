@@ -4,6 +4,7 @@ import { drawBackground, drawTitleArt, drawButton } from "./ui.js";
 import { drawProfessor } from "./characters.js";
 import { pointInRect } from "./utils.js";
 import { isMuted, toggleMuted, playClick } from "./audio.js";
+import { stageRect, titleBottom, fitCharacter, buttonH, bottomPad } from "./layout.js";
 
 import smash from "./games/smash.js";
 import brain from "./games/brain.js";
@@ -19,23 +20,23 @@ const menu = {
   pressed: -1,
   t: 0,
 
-  _layout(w, h) {
-    const bw = Math.min(w * 0.84, 460);
-    const bh = Math.min(76, h * 0.11);
+  // 컬럼-로컬 좌표 기준 버튼 배치
+  _buttons(W, h) {
+    const bw = Math.min(W * 0.84, 440);
+    const bh = buttonH(h);
     const gap = bh * 0.34;
     const totalH = MENU_ITEMS.length * bh + (MENU_ITEMS.length - 1) * gap;
-    const startY = Math.max(h * 0.46, h - totalH - h * 0.12);
-    const x = (w - bw) / 2;
+    const top = h - bottomPad(h) - totalH;
+    const x = (W - bw) / 2;
     return MENU_ITEMS.map((it, i) => ({
       ...it,
-      rect: { x, y: startY + i * (bh + gap), w: bw, h: bh },
+      rect: { x, y: top + i * (bh + gap), w: bw, h: bh },
     }));
   },
 
-  _muteRect(w, h) {
-    const s = 44;
-    const pad = Math.max(12, w * 0.03);
-    return { x: w - pad - s, y: pad, w: s, h: s };
+  _muteRect(W) {
+    const pad = Math.max(12, W * 0.03);
+    return { x: W - pad - 44, y: pad, w: 44, h: 44 };
   },
 
   enter() {
@@ -49,50 +50,61 @@ const menu = {
 
   render(ctx, w, h) {
     drawBackground(ctx, w, h, "menu");
-    drawTitleArt(ctx, w, h);
 
-    // 살짝 흔들거리는 교수님 미리보기
-    const bob = Math.sin(this.t * 1.6) * 6;
-    drawProfessor(ctx, {
-      x: w / 2,
-      y: h * 0.46 + bob,
-      scale: Math.min(w, h) * 0.00072 + 0.18,
-      smart: 1,
-      mood: "smart",
-    });
+    const stage = stageRect(w, h);
+    const W = stage.w;
+    ctx.save();
+    ctx.translate(stage.x, 0);
 
-    const items = this._layout(w, h);
-    items.forEach((it, i) =>
-      drawButton(ctx, it.rect, it.label, {
-        emoji: it.emoji,
-        pressed: this.pressed === i,
-      })
+    drawTitleArt(ctx, W, h);
+
+    const buttons = this._buttons(W, h);
+    const bandTop = titleBottom(W, h) + 10;
+    const bandBottom = buttons[0].rect.y - 12;
+    if (bandBottom - bandTop >= 110) {
+      const fit = fitCharacter(W, bandTop, bandBottom, 0);
+      const bob = Math.sin(this.t * 1.6) * 5;
+      drawProfessor(ctx, {
+        x: W / 2,
+        y: fit.groundY + bob,
+        scale: fit.scale,
+        smart: 1,
+        mood: "smart",
+      });
+    }
+
+    buttons.forEach((it, i) =>
+      drawButton(ctx, it.rect, it.label, { emoji: it.emoji, pressed: this.pressed === i })
     );
 
-    drawButton(ctx, this._muteRect(w, h), "", {
+    drawButton(ctx, this._muteRect(W), "", {
       variant: "ghost",
       emoji: isMuted() ? "🔇" : "🔊",
       fontSize: 22,
     });
+
+    ctx.restore();
   },
 
   onPointerDown(x, y) {
-    const w = engine.w;
-    const h = engine.h;
-    if (pointInRect(x, y, this._muteRect(w, h))) {
+    const stage = stageRect(engine.w, engine.h);
+    const lx = x - stage.x;
+    const W = stage.w;
+    if (pointInRect(lx, y, this._muteRect(W))) {
       toggleMuted();
       if (!isMuted()) playClick();
       return;
     }
-    const items = this._layout(w, h);
-    this.pressed = items.findIndex((it) => pointInRect(x, y, it.rect));
+    const buttons = this._buttons(W, engine.h);
+    this.pressed = buttons.findIndex((it) => pointInRect(lx, y, it.rect));
   },
 
   onPointerUp(x, y) {
     if (this.pressed < 0) return;
-    const items = this._layout(engine.w, engine.h);
-    const it = items[this.pressed];
-    const hit = pointInRect(x, y, it.rect);
+    const stage = stageRect(engine.w, engine.h);
+    const buttons = this._buttons(stage.w, engine.h);
+    const it = buttons[this.pressed];
+    const hit = pointInRect(x - stage.x, y, it.rect);
     this.pressed = -1;
     if (hit) {
       playClick();

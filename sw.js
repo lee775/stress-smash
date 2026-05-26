@@ -1,5 +1,5 @@
 // 서비스워커: 정적 자산 프리캐시 + 오프라인 동작 (cache-first)
-const CACHE = "stressgame-v3";
+const CACHE = "stressgame-v4";
 
 const ASSETS = [
   "./",
@@ -10,6 +10,7 @@ const ASSETS = [
   "./js/engine.js",
   "./js/audio.js",
   "./js/utils.js",
+  "./js/layout.js",
   "./js/ui.js",
   "./js/characters.js",
   "./js/effects.js",

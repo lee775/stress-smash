@@ -6,6 +6,7 @@ import { WEAPONS, drawWeaponIcon, drawWeaponCursor, weaponImpact } from "../weap
 import { makeCrack, drawCrack, ShardBurst } from "../effects.js";
 import { drawTopControls, handleTopControls } from "../sceneutil.js";
 import { makeShake, pointInRect, dist, isMobile } from "../utils.js";
+import { topBarBottom, buttonH, bottomPad } from "../layout.js";
 import { playWeaponHit, vibrate } from "../audio.js";
 
 const MAX_CRACKS = 70;
@@ -30,18 +31,19 @@ const smash = {
 
   _resetRect(w, h) {
     const bw = Math.min(w * 0.5, 240);
-    const bh = 52;
-    const pad = Math.max(12, h * 0.02);
+    const bh = buttonH(h);
+    const pad = bottomPad(h);
     return { x: (w - bw) / 2, y: h - bh - pad, w: bw, h: bh };
   },
 
   _weaponRects(w, h) {
     const n = WEAPONS.length;
-    const ws = Math.max(46, Math.min(68, w * 0.15));
-    const gap = Math.max(6, w * 0.02);
+    const gap = Math.max(6, w * 0.018);
+    const maxWs = (Math.min(w * 0.94, 420) - (n - 1) * gap) / n;
+    const ws = Math.max(44, Math.min(64, maxWs));
     const total = n * ws + (n - 1) * gap;
     const bx = (w - total) / 2;
-    const by = this._resetRect(w, h).y - ws - 12;
+    const by = this._resetRect(w, h).y - ws - 10;
     return WEAPONS.map((wp, i) => ({
       id: wp.id,
       rect: { x: bx + i * (ws + gap), y: by, w: ws, h: ws },
@@ -132,7 +134,7 @@ const smash = {
       ctx.textAlign = "center";
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 8;
-      ctx.fillText("무기를 고르고 마구 박살내세요!", w / 2, h * 0.46);
+      ctx.fillText("무기를 고르고 마구 박살내세요!", w / 2, h * 0.44);
       ctx.restore();
     }
 
@@ -145,7 +147,7 @@ const smash = {
     ctx.textBaseline = "top";
     ctx.shadowColor = "rgba(0,0,0,0.5)";
     ctx.shadowBlur = 6;
-    ctx.fillText(`💥 ${this.count}`, w / 2, h * 0.115);
+    ctx.fillText(`💥 ${this.count}`, w / 2, topBarBottom(w) + 16);
     ctx.restore();
 
     // 무기 선택 바

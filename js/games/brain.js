@@ -5,11 +5,11 @@ import { drawProfessor } from "../characters.js";
 import { drawBrain, drawKnowledgeGlyph, GLYPH_KINDS } from "../brainart.js";
 import { drawTopControls, handleTopControls } from "../sceneutil.js";
 import { clamp, pointInRect, makeShake, pick, rand } from "../utils.js";
+import { stageRect, topBarBottom, buttonH, bottomPad, fitCharacter } from "../layout.js";
 import { playPop, playWin, vibrate } from "../audio.js";
 
 const DRAIN = 0.03; // 탭당 지능 감소량 (세밀하게)
 
-// 지능 단계: smart 내림차순
 const STAGES = [
   { min: 0.86, label: "천재 교수님", line: "이 정도는 기본 상식이죠." },
   { min: 0.72, label: "교수님", line: "양자역학의 핵심은 말이지..." },
@@ -34,17 +34,18 @@ const brain = {
   yank: 0,
   t: 0,
 
-  _resetRect(w, h) {
-    const bw = Math.min(w * 0.5, 240);
-    const bh = 52;
-    const pad = Math.max(12, h * 0.02);
-    return { x: (w - bw) / 2, y: h - bh - pad, w: bw, h: bh };
-  },
-  _scale(w, h) {
-    return clamp(Math.min(w * 0.0017, h * 0.0014), 0.5, 1.1);
-  },
-  _groundY(h) {
-    return h * 0.85;
+  // 컬럼-로컬 레이아웃 (W = stage.w)
+  _layout(W, h) {
+    const top = topBarBottom(W);
+    const gaugeY = top + 28;
+    const gaugeH = 18;
+    const labelY = gaugeY + gaugeH + 24;
+    const hudBottom = labelY + 8;
+    const resetH = buttonH(h);
+    const resetY = h - bottomPad(h) - resetH;
+    const resetRect = { x: (W - Math.min(W * 0.5, 240)) / 2, y: resetY, w: Math.min(W * 0.5, 240), h: resetH };
+    const fit = fitCharacter(W, hudBottom, resetY - 12, 0.42);
+    return { gaugeY, gaugeH, labelY, hudBottom, resetRect, fit };
   },
 
   enter() {
@@ -64,7 +65,6 @@ const brain = {
     this.yank = 1;
     playPop();
     vibrate(14);
-    // 지식 글리프 한두 개가 머리에서 빠져나간다
     const n = 1 + (Math.random() < 0.4 ? 1 : 0);
     for (let i = 0; i < n; i++) {
       const ang = rand(-Math.PI * 0.85, -Math.PI * 0.15);
@@ -76,7 +76,7 @@ const brain = {
         vx: Math.cos(ang) * sp,
         vy: Math.sin(ang) * sp - 40,
         rot: rand(-0.4, 0.4),
-        size: rand(26, 40),
+        size: rand(24, 38),
         life: 1,
       });
     }
@@ -105,21 +105,23 @@ const brain = {
   render(ctx, w, h) {
     drawBackground(ctx, w, h, "brain");
 
-    const scale = this._scale(w, h);
-    const groundY = this._groundY(h);
+    const stage = stageRect(w, h);
+    const W = stage.w;
+    const L = this._layout(W, h);
     const off = this.shake.step(0);
+    const stageObj = stageFor(this.smart);
 
     ctx.save();
-    ctx.translate(off.x, off.y);
-    drawProfessor(ctx, { x: w / 2, y: groundY, scale, smart: this.smart });
-    ctx.restore();
+    ctx.translate(stage.x, 0);
 
-    // 머리 위로 빨려나오는 뇌 (남은 지능 시각화)
-    const headTop = groundY + (-252 - 59) * scale + off.y;
-    const brainSize = 78 * scale;
-    const brainY = headTop - brainSize * 0.5 - this.yank * 16 + Math.sin(this.t * 2) * 3;
-    const brainX = w / 2 + off.x;
-    drawBrain(ctx, brainX, brainY, brainSize, this.smart);
+    // 캐릭터 + 뇌 (흔들림 적용)
+    ctx.save();
+    ctx.translate(off.x, off.y);
+    drawProfessor(ctx, { x: W / 2, y: L.fit.groundY, scale: L.fit.scale, smart: this.smart });
+    const brainSize = 76 * L.fit.scale;
+    const brainY = L.fit.headTopY - brainSize * 0.42 - this.yank * 16 + Math.sin(this.t * 2) * 3;
+    drawBrain(ctx, W / 2, brainY, brainSize, this.smart);
+    ctx.restore();
 
     // 빠져나간 지식 글리프
     for (const g of this.glyphs) {
@@ -130,59 +132,62 @@ const brain = {
       ctx.restore();
     }
 
-    // 말풍선 (뇌 위)
-    const stage = stageFor(this.smart);
-    drawSpeechBubble(ctx, w / 2, brainY - brainSize * 0.55, stage.line, {
-      maxWidth: Math.min(w * 0.82, 380),
-      fontSize: 19,
+    // 말풍선 (뇌 위, HUD 아래로 클램프)
+    const bubbleBottom = Math.max(L.hudBottom + 96, brainY - brainSize * 0.6);
+    drawSpeechBubble(ctx, W / 2, bubbleBottom, stageObj.line, {
+      maxWidth: Math.min(W * 0.82, 360),
+      fontSize: 18,
     });
 
     // IQ 게이지
     const iq = Math.round(this.smart * 130 + 20);
-    drawGauge(ctx, { x: w * 0.1, y: h * 0.14, w: w * 0.8, h: 18 }, this.smart, {
+    drawGauge(ctx, { x: W * 0.1, y: L.gaugeY, w: W * 0.8, h: L.gaugeH }, this.smart, {
       label: `교수님 지능  IQ ${iq}`,
       color: "#5ad1ff",
       showPct: false,
     });
 
-    // 현재 단계 라벨
+    // 단계 라벨
     ctx.save();
     ctx.fillStyle = this.done ? "#fff3a8" : "rgba(255,255,255,0.95)";
-    ctx.font = "900 20px system-ui, 'Apple SD Gothic Neo', sans-serif";
+    ctx.font = "900 19px system-ui, 'Apple SD Gothic Neo', sans-serif";
     ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
     ctx.shadowColor = "rgba(0,0,0,0.4)";
     ctx.shadowBlur = 6;
-    ctx.fillText(this.done ? "🎉 할아버지 완성! 🎉" : `🧠 ${stage.label}`, w / 2, h * 0.2);
+    ctx.fillText(this.done ? "🎉 할아버지 완성! 🎉" : `🧠 ${stageObj.label}`, W / 2, L.labelY);
     ctx.restore();
 
-    drawTopControls(ctx, w, h, "지능 뺏기");
+    drawTopControls(ctx, W, h, "지능 뺏기");
+    drawButton(ctx, L.resetRect, "지능 복구", { emoji: "🔄", variant: "primary", pressed: this.resetPressed });
 
+    ctx.restore();
+
+    // 꽃가루는 전체 화면 기준
     if (this.done) this.confetti.render(ctx);
-
-    drawButton(ctx, this._resetRect(w, h), "지능 복구", {
-      emoji: "🔄",
-      variant: "primary",
-      pressed: this.resetPressed,
-    });
   },
 
   onPointerDown(x, y) {
-    const w = engine.w;
+    const stage = stageRect(engine.w, engine.h);
+    const W = stage.w;
     const h = engine.h;
-    if (handleTopControls(x, y, engine, w, h)) return;
-    if (pointInRect(x, y, this._resetRect(w, h))) {
+    const lx = x - stage.x;
+    if (handleTopControls(lx, y, engine, W, h)) return;
+    const L = this._layout(W, h);
+    if (pointInRect(lx, y, L.resetRect)) {
       this.resetPressed = true;
       return;
     }
-    const scale = this._scale(w, h);
-    const headY = this._groundY(h) + (-252) * scale;
-    this._drain(w / 2, headY);
+    const headY = L.fit.groundY + -252 * L.fit.scale;
+    this._drain(W / 2, headY);
   },
 
   onPointerUp(x, y) {
     if (this.resetPressed) {
       this.resetPressed = false;
-      if (pointInRect(x, y, this._resetRect(engine.w, engine.h))) {
+      const stage = stageRect(engine.w, engine.h);
+      const L = this._layout(stage.w, engine.h);
+      if (pointInRect(x - stage.x, y, L.resetRect)) {
         this.smart = 1;
         this.done = false;
         this.glyphs = [];
