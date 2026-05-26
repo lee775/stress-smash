@@ -6,7 +6,7 @@ import { WEAPONS, drawWeaponIcon, drawWeaponCursor, weaponImpact } from "../weap
 import { makeCrack, drawCrack, ShardBurst } from "../effects.js";
 import { drawTopControls, handleTopControls } from "../sceneutil.js";
 import { makeShake, pointInRect, dist, isMobile } from "../utils.js";
-import { playCrack, vibrate } from "../audio.js";
+import { playWeaponHit, vibrate } from "../audio.js";
 
 const MAX_CRACKS = 70;
 const SWING = 0.22; // 스윙 1회 시간(초)
@@ -95,7 +95,7 @@ const smash = {
     this.shake.add(imp.shake * power);
     this.swingT = 0;
     this.count++;
-    playCrack();
+    playWeaponHit(this.weapon);
     vibrate(Math.round(imp.shake * power));
     this.lastX = x;
     this.lastY = y;

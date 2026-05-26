@@ -49,15 +49,15 @@ function noiseBuffer(c) {
   return noiseBuf;
 }
 
-function playNoise(dur, peak, filterFreq, t0) {
+function playNoise(dur, peak, filterFreq, t0, type = "bandpass", q = 0.8) {
   const c = ac();
   if (!c || muted) return;
   const src = c.createBufferSource();
   src.buffer = noiseBuffer(c);
   const filt = c.createBiquadFilter();
-  filt.type = "bandpass";
+  filt.type = type;
   filt.frequency.value = filterFreq;
-  filt.Q.value = 0.8;
+  filt.Q.value = q;
   const g = envGain(c, t0, peak, 0.001, dur);
   src.connect(filt).connect(g).connect(c.destination);
   src.start(t0);
@@ -87,6 +87,44 @@ export function playCrack() {
   playNoise(0.18, 0.5, 3200, t);
   playNoise(0.12, 0.3, 6000, t + 0.01);
   playTone("triangle", 900, 200, 0.12, 0.25, t);
+}
+
+// 무기별 타격음 — 무기마다 충격 레이어가 다르고 공통적으로 유리 깨짐이 섞인다
+export function playWeaponHit(id) {
+  const c = ac();
+  if (!c || muted) return;
+  const t = c.currentTime;
+
+  if (id === "hammer") {
+    // 묵직한 저음 쿵 + 강한 유리 파열
+    playTone("sine", 190, 38, 0.2, 0.6, t);
+    playNoise(0.18, 0.5, 3000, t, "bandpass", 0.7);
+    playNoise(0.1, 0.32, 6200, t + 0.012);
+    playTone("triangle", 820, 150, 0.12, 0.22, t);
+  } else if (id === "bat") {
+    // 나무 "딱!" — 단단한 중음 노크
+    playTone("triangle", 340, 150, 0.13, 0.55, t);
+    playTone("square", 250, 110, 0.07, 0.22, t);
+    playNoise(0.1, 0.28, 2200, t + 0.004);
+    playNoise(0.08, 0.22, 5200, t + 0.02);
+  } else if (id === "pipe") {
+    // 금속 "캉~" — 고음 부분음 울림
+    [1280, 1920, 2650, 3500].forEach((f, i) =>
+      playTone("sine", f, f * 0.95, 0.34 - i * 0.05, 0.16 - i * 0.025, t)
+    );
+    playNoise(0.07, 0.34, 4400, t, "bandpass", 1.4);
+    playNoise(0.1, 0.2, 7000, t + 0.015);
+  } else if (id === "brick") {
+    // 둔탁한 "퍽" + 저역 부스러기 크런치
+    playTone("sine", 125, 46, 0.16, 0.5, t);
+    playNoise(0.2, 0.42, 850, t, "lowpass", 0.9);
+    playNoise(0.12, 0.3, 2600, t + 0.01);
+  } else {
+    // 주먹 — 가볍고 둔한 펀치
+    playTone("sine", 150, 66, 0.11, 0.38, t);
+    playNoise(0.06, 0.22, 1500, t, "lowpass", 0.8);
+    playNoise(0.05, 0.16, 3800, t + 0.008);
+  }
 }
 
 // 정강이 타격 (퍽!)
