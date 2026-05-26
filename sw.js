@@ -1,5 +1,5 @@
 // 서비스워커: 정적 자산 프리캐시 + 오프라인 동작 (cache-first)
-const CACHE = "stressgame-v4";
+const CACHE = "stressgame-v5";
 
 const ASSETS = [
   "./",
@@ -43,23 +43,24 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// network-first: 온라인이면 항상 최신을 받아 배포가 즉시 반영되고,
+// 오프라인일 때만 캐시로 폴백한다.
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
+  if (new URL(req.url).origin !== self.location.origin) return;
 
   e.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req)
-        .then((res) => {
-          // 같은 출처의 정상 응답만 캐시에 저장
-          if (res.ok && new URL(req.url).origin === self.location.origin) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-    })
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(req).then((cached) => cached || caches.match("./index.html"))
+      )
   );
 });

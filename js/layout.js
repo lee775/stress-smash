@@ -23,15 +23,20 @@ export function buttonH(h) {
 
 // 캐릭터를 세로 밴드 [topY, bottomY]에 맞춰 스케일/바닥좌표 계산.
 // headroom: 머리 위로 비워둘 비율(말풍선/뇌 공간). 폭/세로 모두 고려해 절대 밴드를 넘지 않음.
+//
+// 주의: 교수님 캐릭터의 실제 시각 높이는 발끝~머리카락 끝까지 ≈ 332 로컬단위다.
+// (머리 중심 -252, 반지름~53, 머리카락 -77 → 상단 약 -329). 이 값으로 스케일을 잡아야
+// 머리카락이 밴드 위(타이틀/HUD)를 침범하지 않는다.
+const FIG_H = 332;
+
 export function fitCharacter(stageW, topY, bottomY, headroom = 0) {
   const bandH = Math.max(20, bottomY - topY);
-  const figH = bandH * (1 - headroom);
-  // 발끝~머리끝 ≈ 312 로컬단위, 좌우 폭 ≈ ±100
-  let scale = figH / 312;
-  scale = Math.min(scale, (stageW * 0.8) / 200); // 가로 제약
-  scale = Math.min(scale, 1.35); // 너무 커지지 않게
+  const figH = bandH * (1 - headroom) * 0.96; // 추가 안전 여백 4%
+  let scale = figH / FIG_H;
+  scale = Math.min(scale, (stageW * 0.78) / 200); // 가로 제약(폭 ≈ ±100)
+  scale = Math.min(scale, 1.3);
   const groundY = bottomY;
-  const headTopY = groundY - 311 * scale;
+  const headTopY = groundY - FIG_H * scale; // 머리카락 끝 기준
   return { scale, groundY, headTopY, bandH };
 }
 

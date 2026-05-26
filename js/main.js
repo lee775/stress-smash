@@ -59,18 +59,15 @@ const menu = {
     drawTitleArt(ctx, W, h);
 
     const buttons = this._buttons(W, h);
-    const bandTop = titleBottom(W, h) + 10;
-    const bandBottom = buttons[0].rect.y - 12;
-    if (bandBottom - bandTop >= 110) {
-      const fit = fitCharacter(W, bandTop, bandBottom, 0);
-      const bob = Math.sin(this.t * 1.6) * 5;
-      drawProfessor(ctx, {
-        x: W / 2,
-        y: fit.groundY + bob,
-        scale: fit.scale,
-        smart: 1,
-        mood: "smart",
-      });
+    const bandTop = titleBottom(W, h) + 18;
+    const bandBottom = buttons[0].rect.y - 20;
+    if (bandBottom - bandTop >= 120) {
+      // 여백(headroom)을 두고 밴드 안에서 수직 중앙 정렬 → 위아래로 숨 쉬게
+      const fit = fitCharacter(W, bandTop, bandBottom, 0.18);
+      const figH = 332 * fit.scale;
+      const groundY = bandTop + (bandBottom - bandTop + figH) / 2;
+      const bob = Math.sin(this.t * 1.6) * 4;
+      drawProfessor(ctx, { x: W / 2, y: groundY + bob, scale: fit.scale, smart: 1, mood: "smart" });
     }
 
     buttons.forEach((it, i) =>
