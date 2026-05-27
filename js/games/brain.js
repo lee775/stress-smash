@@ -11,13 +11,25 @@ import { playPop, playWin, vibrate } from "../audio.js";
 const DRAIN = 0.03; // 탭당 지능 감소량 (세밀하게)
 
 const STAGES = [
-  { min: 0.86, label: "천재 교수님", line: "이 정도는 기본 상식이죠." },
-  { min: 0.72, label: "교수님", line: "양자역학의 핵심은 말이지..." },
-  { min: 0.58, label: "시간강사", line: "음... 미분을 하면 그러니까..." },
-  { min: 0.44, label: "동네 아저씨", line: "어... 1 더하기 1은... 둘?" },
-  { min: 0.3, label: "할아버지", line: "밥은... 먹었냐...?" },
-  { min: 0.16, label: "꼬부랑 할아버지", line: "내 안경 어디 갔어..." },
-  { min: 0.0, label: "그냥 할아버지", line: "에헴~ 라떼는 말이야!" },
+  {
+    min: 0.86,
+    label: "천재 교수님",
+    lines: ["이 정도는 기본 상식이죠.", "프로이트 학파에 따르면....", "과제 내세요."],
+  },
+  {
+    min: 0.72,
+    label: "교수님",
+    lines: ["양자역학의 핵심은 말이지...", "윤지학생은....졸업을 아직도...?", "과제 내세요."],
+  },
+  {
+    min: 0.58,
+    label: "시간강사",
+    lines: ["음... 미분을 하면 그러니까...", "프로이트 학파에 따르면....", "윤지학생은....졸업을 아직도...?"],
+  },
+  { min: 0.44, label: "동네 아저씨", lines: ["어... 1 더하기 1은... 둘?"] },
+  { min: 0.3, label: "할아버지", lines: ["밥은... 먹었냐...?"] },
+  { min: 0.16, label: "꼬부랑 할아버지", lines: ["내 안경 어디 갔어..."] },
+  { min: 0.0, label: "그냥 할아버지", lines: ["에헴~ 라떼는 말이야!"] },
 ];
 
 function stageFor(smart) {
@@ -33,6 +45,7 @@ const brain = {
   resetPressed: false,
   yank: 0,
   t: 0,
+  lineIdx: 0,
 
   // 컬럼-로컬 레이아웃 (W = stage.w)
   _layout(W, h) {
@@ -55,12 +68,14 @@ const brain = {
     this.resetPressed = false;
     this.yank = 0;
     this.t = 0;
+    this.lineIdx = 0;
     this.confetti = new Confetti(engine.w, engine.h);
   },
 
   _drain(headX, headY) {
     if (this.done) return;
     this.smart = clamp(this.smart - DRAIN, 0, 1);
+    this.lineIdx++;
     this.shake.add(8);
     this.yank = 1;
     playPop();
@@ -110,6 +125,7 @@ const brain = {
     const L = this._layout(W, h);
     const off = this.shake.step(0);
     const stageObj = stageFor(this.smart);
+    const line = stageObj.lines[this.lineIdx % stageObj.lines.length];
 
     ctx.save();
     ctx.translate(stage.x, 0);
@@ -134,7 +150,7 @@ const brain = {
 
     // 말풍선 (뇌 위, HUD 아래로 클램프)
     const bubbleBottom = Math.max(L.hudBottom + 96, brainY - brainSize * 0.6);
-    drawSpeechBubble(ctx, W / 2, bubbleBottom, stageObj.line, {
+    drawSpeechBubble(ctx, W / 2, bubbleBottom, line, {
       maxWidth: Math.min(W * 0.82, 360),
       fontSize: 18,
     });
